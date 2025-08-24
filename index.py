@@ -1,16 +1,15 @@
 from flask import Flask, request, jsonify
 import subprocess
 import os
+import time
 
 app = Flask(__name__)
 
 # Archivos de cookies
-# Crear cookies_instagram.txt desde env
 if "COOKIES_INSTAGRAM" in os.environ:
     with open("cookies_instagram.txt", "w") as f:
         f.write(os.environ["COOKIES_INSTAGRAM"])
 
-# Crear cookies_youtube.txt desde env
 if "COOKIES_YOUTUBE" in os.environ:
     with open("cookies_youtube.txt", "w") as f:
         f.write(os.environ["COOKIES_YOUTUBE"])
@@ -27,29 +26,47 @@ def get_video():
     # Detectar la plataforma
     if "instagram.com" in url:
         cookies_file = "cookies_instagram.txt"
+        platform = "instagram"
     elif "youtube.com" in url or "youtu.be" in url:
         cookies_file = "cookies_youtube.txt"
+        platform = "youtube"
     else:
         return jsonify({"error": "Unsupported URL"}), 400
 
     try:
-        # Ejecutar yt-dlp para obtener el link directo
+        app.logger.info(f"Procesando URL: {url} (plataforma: {platform})")
+
+        start_time = time.time()
+
         result = subprocess.run(
             ["yt-dlp", "--cookies", cookies_file, "-g", url],
-            capture_output=True, text=True
+            capture_output=True, text=True, timeout=60  # máximo 60s
         )
 
+        elapsed = time.time() - start_time
+        app.logger.info(f"yt-dlp terminó en {elapsed:.2f} segundos")
+        app.logger.info(f"STDOUT: {result.stdout.strip()}")
+        app.logger.info(f"STDERR: {result.stderr.strip()}")
+
         if result.returncode != 0:
-            return jsonify({"error": result.stderr.strip()}), 500
+            return jsonify({
+                "error": "yt-dlp failed",
+                "stderr": result.stderr.strip(),
+                "stdout": result.stdout.strip(),
+                "elapsed_seconds": elapsed
+            }), 500
 
-        return jsonify({"video_url": result.stdout.strip()})
+        return jsonify({
+            "video_url": result.stdout.strip(),
+            "elapsed_seconds": elapsed
+        })
 
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "yt-dlp timeout (exceeded 60s)"}), 504
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":
-    # Render detecta el puerto con la variable de entorno PORT
-    import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
