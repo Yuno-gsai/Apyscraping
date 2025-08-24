@@ -1,11 +1,20 @@
 from flask import Flask, request, jsonify
 import subprocess
+import os
 
 app = Flask(__name__)
 
 # Archivos de cookies
-COOKIES_INSTAGRAM = "cookies_instagram.txt"
-COOKIES_YOUTUBE = "cookies_youtube.txt"
+# Crear cookies_instagram.txt desde env
+if "COOKIES_INSTAGRAM" in os.environ:
+    with open("cookies_instagram.txt", "w") as f:
+        f.write(os.environ["COOKIES_INSTAGRAM"])
+
+# Crear cookies_youtube.txt desde env
+if "COOKIES_YOUTUBE" in os.environ:
+    with open("cookies_youtube.txt", "w") as f:
+        f.write(os.environ["COOKIES_YOUTUBE"])
+
 
 @app.route("/get_video", methods=["POST"])
 def get_video():
@@ -17,9 +26,9 @@ def get_video():
 
     # Detectar la plataforma
     if "instagram.com" in url:
-        cookies_file = COOKIES_INSTAGRAM
+        cookies_file = "cookies_instagram.txt"
     elif "youtube.com" in url or "youtu.be" in url:
-        cookies_file = COOKIES_YOUTUBE
+        cookies_file = "cookies_youtube.txt"
     else:
         return jsonify({"error": "Unsupported URL"}), 400
 
